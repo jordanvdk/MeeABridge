@@ -2,7 +2,7 @@
 
 A small native iPhone companion for your own MeeA server. Ask a question in the app or through an Ask MeeA App Intent, and preview then manually send seven completed days of Apple Health step totals.
 
-**V0.5 source candidate.** iOS compilation, signed installation, Siri and real HealthKit acceptance have not yet been performed. This repository is prepared for a future macOS build; a Windows source review is not an iPhone build. The server needs the matching steps-import capability before Sync Health can succeed.
+**V0.5 source candidate.** [The first macOS CI run](https://github.com/jordanvdk/MeeABridge/actions/runs/34539302664) passed all seven core tests and built the unsigned iOS simulator app with Xcode 16.4. Signed installation, Siri and real HealthKit acceptance are still pending. The server needs the matching steps-import capability before Sync Health can succeed.
 
 ## What is included
 
@@ -17,7 +17,7 @@ The phone does not host the agent or copy the Manor. A question goes to the conf
 
 ## Build
 
-Requires macOS, Xcode with an iOS 17+ SDK and XcodeGen 2.46.0. The checked-in GitHub Actions workflow runs unsigned checks when this source is deliberately published to GitHub; it uses no signing secrets.
+Requires macOS, Xcode with an iOS 17+ SDK and XcodeGen 2.46.0. The GitHub Actions workflow runs unsigned checks on pushes and pull requests; it uses no signing secrets.
 
 ```sh
 swift test

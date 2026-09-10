@@ -1,6 +1,6 @@
 # Building and distribution
 
-The initial local candidate has not been compiled with Xcode. The first macOS run must pass both Swift package tests and an unsigned simulator build; fix any compiler, signing-metadata or AppIntent extraction errors before claiming build readiness.
+The [first macOS CI run](https://github.com/jordanvdk/MeeABridge/actions/runs/34539302664) passed seven Swift package tests and built the unsigned simulator app with Xcode 16.4 and Swift 6.1.2. This verifies compilation; signed installation and real-device Siri and HealthKit checks remain pending.
 
 ## Unsigned CI
 
