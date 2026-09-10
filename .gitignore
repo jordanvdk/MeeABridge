@@ -1,0 +1,28 @@
+# Builds and local Xcode state
+.build/
+.swiftpm/
+DerivedData/
+Generated/
+*.xcodeproj/
+*.xcworkspace/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+# Credentials, signing and local settings
+.env*
+*.p12
+*.p8
+*.mobileprovision
+*.key
+*.pem
+*.cer
+ExportOptions.plist
+Local.xcconfig
+# Personal exports and runtime evidence
+*.ipa
+*.xcarchive/
+*.xcresult/
+*.log
+health-exports/
+private/
+MeeABridge-unsigned-simulator.zip

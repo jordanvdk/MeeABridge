@@ -1,0 +1,39 @@
+name: MeeABridge
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  MeeABridgeCore:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    PRODUCT_BUNDLE_IDENTIFIER: org.example.MeeABridge
+    MARKETING_VERSION: "0.5.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  MeeABridge:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: MeeABridgeCore
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: MeeA Bridge
+        UILaunchScreen: {}
+        NSHealthShareUsageDescription: MeeA Bridge reads your daily steps so you can preview and manually send them to your own MeeA server.
+        ITSAppUsesNonExemptEncryption: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    entitlements:
+      path: Generated/MeeABridge.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+schemes:
+  MeeABridge:
+    build:
+      targets:
+        MeeABridge: all

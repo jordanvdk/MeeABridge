@@ -1,0 +1,46 @@
+name: Unsigned iOS candidate
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: unsigned-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Show build tools
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Test core contract
+        run: swift test
+      - name: Install checksum-verified XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/xcodegen.zip"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  $archive" | shasum -a 256 --check
+          unzip -q "$archive" -d "$RUNNER_TEMP/xcodegen-tool"
+          "$RUNNER_TEMP/xcodegen-tool/xcodegen/bin/xcodegen" generate
+      - name: Build unsigned simulator app
+        run: >-
+          xcodebuild -project MeeABridge.xcodeproj -scheme MeeABridge
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Package simulator app
+        run: ditto -c -k --keepParent DerivedData/Build/Products/Debug-iphonesimulator/MeeABridge.app MeeABridge-unsigned-simulator.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MeeABridge-unsigned-simulator-not-for-iPhone
+          path: MeeABridge-unsigned-simulator.zip
+          retention-days: 3
+          if-no-files-found: error
