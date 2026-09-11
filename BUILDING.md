@@ -55,7 +55,7 @@ The workflow checks out the dispatch SHA, reruns tests, regenerates the icon/pro
 
 Apple validation and upload use API-key authentication. No automatic provisioning changes, Apple password, signing action from a pull request, untrusted artifact signing or automatic App Store release are included. Upload is manual and restricted to `main`; branch access and the environment review gate are configured separately in GitHub.
 
-Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages, allowlisted failure categories, standard Info.plist key names and bounded Apple ITMS error codes are published; account/app values and raw log text are never included. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
+Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages, allowlisted failure categories, standard Info.plist key names and bounded Apple ITMS error codes are published; account/app values and raw log text are never included. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Optional encrypted Apple diagnostics are described below. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
 
 ## After upload
 
@@ -64,3 +64,11 @@ An accepted upload is not yet an installable TestFlight build. Wait for Apple's 
 Complete `docs/acceptance.md` on a real iPhone. The matching MeeA backend and private HTTPS connection must also work before Ask or Sync Health can succeed. Installing through TestFlight alone does not configure the server or Tailscale.
 
 Primary references: [Apple upload requirements](https://developer.apple.com/news/upcoming-requirements/), [upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/), [internal TestFlight testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/), [App Store profiles](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/), [API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/).
+
+## Optional encrypted Apple diagnostics
+
+With the owner's approval, set the protected `testflight` environment variable `DIAGNOSTIC_PUBLIC_KEY_BASE64` to the base64 of a PKCS1 DER RSA public key (3072-8192 bits). Keep its password-encrypted private key outside Git and outside GitHub. Without this variable no diagnostic attachment is created.
+
+Only failed Apple package validation or upload triggers encryption of the final 2 MiB of that command's log. The native helper uses a fresh AES-256-GCM key and nonce and wraps the key with RSA-OAEP-SHA256. Run, attempt and stage are authenticated context. The workflow attaches only a successfully generated, schema-checked sealed envelope, with one-day retention. Encryption failure produces a fixed message and no attachment; raw logs are deleted by signing cleanup. The original Apple failure remains a failed run.
+
+The ciphertext attachment is publicly downloadable in a public repository. One-day retention does not remove copies others downloaded. Treat the plaintext as sensitive, decrypt only locally with the private key, and never commit logs, keys or personal diagnostic contents. Remove the environment variable to disable further attachments. Native self-tests use ephemeral synthetic keys and data.

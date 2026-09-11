@@ -47,8 +47,18 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          DIAGNOSTIC_PUBLIC_KEY_BASE64: ${{ vars.DIAGNOSTIC_PUBLIC_KEY_BASE64 }}
           UPLOAD_TO_TESTFLIGHT: ${{ inputs.upload }}
         run: python3 scripts/sign_and_upload.py
       - name: Remove temporary signing material
         if: always() && steps.checkout.outcome == 'success'
         run: python3 scripts/sign_and_upload.py --cleanup
+      - name: Attach encrypted Apple diagnostic
+        if: failure() && steps.sign.outputs.encrypted_diagnostic == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: encrypted-apple-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/meea-encrypted-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

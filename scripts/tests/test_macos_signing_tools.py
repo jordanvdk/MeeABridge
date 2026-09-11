@@ -13,6 +13,24 @@ spec.loader.exec_module(signing)
 
 @unittest.skipUnless(sys.platform == "darwin", "Requires native macOS signing tools; no Apple account or certificate needed.")
 class MacSigningToolsTests(unittest.TestCase):
+    def test_native_encryption_diagnostic_self_test(self):
+        diagnostic = Path(__file__).parents[1] / "EncryptSigningDiagnostic.swift"
+        result = subprocess.run(
+            ["swift", str(diagnostic), "--self-test"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        compiler_stderr = result.stderr[-2000:] or "(no compiler diagnostics)"
+        self.assertEqual(
+            result.returncode,
+            0,
+            "Native encryption self-test failed safely; bounded compiler stderr:\n" + compiler_stderr,
+        )
+        self.assertEqual(result.stdout, "Signing diagnostic self-test passed.\n")
+        self.assertEqual(result.stderr, "")
+
     def test_modern_codesign_entitlements_are_read_as_xml(self):
         with tempfile.TemporaryDirectory(prefix="meea-signing-probe-") as directory:
             root = Path(directory)
@@ -25,7 +43,6 @@ class MacSigningToolsTests(unittest.TestCase):
             subprocess.run(["codesign", "--force", "--sign", "-", "--entitlements", str(entitlements), str(binary)], check=True, capture_output=True)
             decoded = signing.read_signed_entitlements(binary, root)
             self.assertIs(decoded["com.apple.security.app-sandbox"], True)
-
 
 if __name__ == "__main__":
     unittest.main()

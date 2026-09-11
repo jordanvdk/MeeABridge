@@ -153,6 +153,74 @@ def apple_failure_hint(log):
     return " (" + "; ".join(details) + ")" if details else ""
 
 
+def encrypted_diagnostic_path():
+    state = state_directory()
+    return state.parent / (state.name.replace("meea-signing-", "meea-encrypted-diagnostic-", 1) + ".json")
+
+
+def checked_envelope(path, context):
+    # The encryptor is trusted reviewed code; this rejects partial/malformed output.
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 3 * 1024 * 1024:
+        raise ValueError()
+    data = path.read_bytes()
+    envelope = json.loads(data)
+    fields = {"version", "algorithm", "context", "wrappedKey", "nonce", "ciphertext", "tag"}
+    if (set(envelope) != fields or type(envelope["version"]) is not int
+            or envelope["version"] != 1 or envelope["algorithm"] != "RSA-OAEP-256+A256GCM"
+            or envelope["context"] != context):
+        raise ValueError()
+    sizes = {"wrappedKey": (384, 1024), "nonce": (12, 12),
+             "ciphertext": (0, 2 * 1024 * 1024), "tag": (16, 16)}
+    for field, (minimum, maximum) in sizes.items():
+        decoded = base64.b64decode(envelope[field], validate=True)
+        if not minimum <= len(decoded) <= maximum:
+            raise ValueError()
+    return data
+
+
+def preserve_apple_diagnostic(label, state, child_env):
+    encoded = os.environ.get("DIAGNOSTIC_PUBLIC_KEY_BASE64")
+    stages = {"Apple package validation": "validation", "Apple upload": "upload"}
+    if not encoded or label not in stages:
+        return
+    published = None
+    try:
+        if state.resolve() != state_directory():
+            raise ValueError()
+        if len(encoded) > 12000:
+            raise ValueError()
+        key = base64.b64decode(encoded, validate=True)
+        if not 1 <= len(key) <= 8192:
+            raise ValueError()
+        key_path = state / "diagnostic-public.der"
+        write_private(key_path, key)
+        context = "run=" + os.environ["GITHUB_RUN_ID"] + ";attempt=" + os.environ["GITHUB_RUN_ATTEMPT"] + ";stage=" + stages[label]
+        candidate = state / "diagnostic-sealed.pending"
+        result = subprocess.run(["swift", str(Path(__file__).with_name("EncryptSigningDiagnostic.swift")),
+                                 str(key_path), str(state / "command.log"), str(candidate), context],
+                                env=child_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=120, check=False)
+        if result.returncode != 0:
+            raise ValueError()
+        data = checked_envelope(candidate, context)
+        destination = encrypted_diagnostic_path()
+        # Exclusive creation: never replace an existing file or follow a symlink.
+        with destination.open("xb") as output:
+            published = destination
+            os.chmod(destination, 0o600)
+            output.write(data)
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+            output.write("encrypted_diagnostic=true\n")
+        print("Encrypted Apple diagnostic prepared for the one-day attachment.", flush=True)
+    except Exception:
+        if published is not None:
+            try:
+                published.unlink(missing_ok=True)
+            except OSError:
+                pass  # No success output was emitted; attachment remains disabled.
+        print("Encrypted Apple diagnostic unavailable; no diagnostic attachment prepared.", flush=True)
+
+
 def command(label, args, state, *, cwd=None, timeout=900, structured=False):
     # Child build tools never inherit the original credential environment.
     child_env = {k: v for k, v in os.environ.items() if k not in CREDENTIALS}
@@ -168,6 +236,7 @@ def command(label, args, state, *, cwd=None, timeout=900, structured=False):
         hint = archive_failure_hint(log) if label == "Device archive" else ""
         if label in ("Apple package validation", "Apple upload"):
             hint = apple_failure_hint(log)
+            preserve_apple_diagnostic(label, state, child_env)
         raise SigningError(label + " failed" + hint + "; no raw signing log was published.")
     # Small structured commands need their output; build log contents are never printed.
     with log.open("rb") as source:
