@@ -10,10 +10,12 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
       - name: Show build tools
@@ -22,15 +24,12 @@ jobs:
           swift --version
       - name: Test core contract
         run: swift test
-      - name: Install checksum-verified XcodeGen
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/xcodegen.zip"
-          curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
-          echo "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  $archive" | shasum -a 256 --check
-          unzip -q "$archive" -d "$RUNNER_TEMP/xcodegen-tool"
-          "$RUNNER_TEMP/xcodegen-tool/xcodegen/bin/xcodegen" generate
+      - name: Verify distribution helper
+        run: python3 -m unittest discover -s scripts/tests
+      - name: Generate app icon
+        run: swift scripts/GenerateAppIcon.swift
+      - name: Generate Xcode project
+        run: bash scripts/install-xcodegen.sh
       - name: Build unsigned simulator app
         run: >-
           xcodebuild -project MeeABridge.xcodeproj -scheme MeeABridge

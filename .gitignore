@@ -26,3 +26,11 @@ Local.xcconfig
 health-exports/
 private/
 MeeABridge-unsigned-simulator.zip
+
+# Generated icon and local distribution inputs
+App/Assets.xcassets/AppIcon.appiconset/Icon.png
+__pycache__/
+*.pyc
+*.p12.b64
+*.mobileprovision.b64
+*.csr

@@ -17,15 +17,18 @@ The phone does not host the agent or copy the Manor. A question goes to the conf
 
 ## Build
 
-Requires macOS, Xcode with an iOS 17+ SDK and XcodeGen 2.46.0. The GitHub Actions workflow runs unsigned checks on pushes and pull requests; it uses no signing secrets.
+Requires macOS, Xcode 26.6 and XcodeGen 2.46.0. The app supports iOS 17 and later. The GitHub Actions workflow runs unsigned checks on pushes and pull requests; it uses no signing secrets.
 
 ```sh
 swift test
+swift scripts/GenerateAppIcon.swift
 xcodegen generate
 xcodebuild -project MeeABridge.xcodeproj -scheme MeeABridge \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
 ```
+
+A separate manually dispatched workflow can sign and upload to internal TestFlight after configuring the protected environment and Apple signing inputs.
 
 The simulator artifact is **not installable on an iPhone**. See [BUILDING.md](BUILDING.md) for the signed device/TestFlight path. No paid service is required to inspect this source; device distribution has separate Apple requirements.
 

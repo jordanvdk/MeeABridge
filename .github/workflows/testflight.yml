@@ -1,0 +1,54 @@
+name: Signed TestFlight upload
+run-name: TestFlight build ${{ github.run_number }}
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload the signed build to App Store Connect
+        type: boolean
+        default: true
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: testflight-distribution
+  cancel-in-progress: false
+jobs:
+  distribute:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 40
+    environment: testflight
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out the reviewed revision
+        id: checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify distribution helper
+        run: python3 -m unittest discover -s scripts/tests
+      - name: Test core contract
+        run: swift test
+      - name: Generate app icon
+        run: swift scripts/GenerateAppIcon.swift
+      - name: Generate Xcode project
+        run: bash scripts/install-xcodegen.sh
+      - name: Sign, validate and optionally upload
+        id: sign
+        env:
+          APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          UPLOAD_TO_TESTFLIGHT: ${{ inputs.upload }}
+        run: python3 scripts/sign_and_upload.py
+      - name: Remove temporary signing material
+        if: always() && steps.checkout.outcome == 'success'
+        run: python3 scripts/sign_and_upload.py --cleanup
