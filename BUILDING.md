@@ -55,7 +55,7 @@ The workflow checks out the dispatch SHA, reruns tests, regenerates the icon/pro
 
 Apple validation and upload use API-key authentication. No automatic provisioning changes, Apple password, signing action from a pull request, untrusted artifact signing or automatic App Store release are included. Upload is manual and restricted to `main`; branch access and the environment review gate are configured separately in GitHub.
 
-Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages and allowlisted archive failure categories are published; no raw log text is included. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
+Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages, allowlisted failure categories, standard Info.plist key names and bounded Apple ITMS error codes are published; account/app values and raw log text are never included. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
 
 ## After upload
 

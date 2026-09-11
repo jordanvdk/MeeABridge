@@ -97,14 +97,18 @@ def archive_signing_settings(team, identity, profile_id, keychain):
             "MEEA_PROFILE_UUID=" + profile_id, "MEEA_KEYCHAIN_PATH=" + str(keychain)]
 
 
-def archive_failure_hint(log):
-    # Read a bounded tail and emit only fixed categories, never log fragments.
+def diagnostic_tail(log):
     try:
         with log.open("rb") as source:
             source.seek(max(0, log.stat().st_size - 2 * 1024 * 1024))
-            output = source.read(2 * 1024 * 1024).lower()
+            return source.read(2 * 1024 * 1024).lower()
     except OSError:
-        return ""
+        return b""
+
+
+def archive_failure_hint(log):
+    # Read a bounded tail and emit only fixed categories, never log fragments.
+    output = diagnostic_tail(log)
     categories = (
         (b"does not support provisioning profiles", "profile assigned to an unsupported target"),
         (b"no profiles for", "matching provisioning profile not found"),
@@ -116,6 +120,37 @@ def archive_failure_hint(log):
         if marker in output:
             return " (" + category + ")"
     return ""
+
+
+def apple_failure_hint(log):
+    output = diagnostic_tail(log)
+    # These are public diagnostic identifiers, never arbitrary JSON values or
+    # snippets. All other text, including account/app values, remains private.
+    codes = sorted({value.decode("ascii").upper()
+                    for value in re.findall(rb"\bitms-[0-9]{5}\b", output)})[:8]
+    fields = ("NSHealthUpdateUsageDescription", "NSHealthShareUsageDescription",
+              "NSSiriUsageDescription", "NSMicrophoneUsageDescription",
+              "CFBundleIconName", "CFBundleIcons", "CFBundleVersion",
+              "CFBundleShortVersionString", "CFBundleIdentifier", "MinimumOSVersion")
+    hints = ["Info.plist key " + field for field in fields if field.lower().encode() in output]
+    categories = (
+        (b"unable to authenticate", "Apple authentication failed"),
+        (b"failed to authenticate", "Apple authentication failed"),
+        (b"authentication failed", "Apple authentication failed"),
+        (b"could not find a private key", "upload key lookup failed"),
+        (b"invalid provisioning profile", "Apple rejected the provisioning profile"),
+        (b"missing code-signing certificate", "Apple reported a missing signing certificate"),
+        (b"invalid signature", "Apple rejected the signature"),
+        (b"required icon", "required app icon metadata"),
+        (b"agreement", "Apple account agreement"),
+        (b"service unavailable", "Apple service unavailable"),
+        (b"timed out", "Apple request timed out"),
+        (b"not authorized", "Apple authorization failed"),
+        (b"not supported", "unsupported Apple tool operation"),
+    )
+    hints.extend(category for marker, category in categories if marker in output)
+    details = codes + list(dict.fromkeys(hints))[:8]
+    return " (" + "; ".join(details) + ")" if details else ""
 
 
 def command(label, args, state, *, cwd=None, timeout=900, structured=False):
@@ -131,6 +166,8 @@ def command(label, args, state, *, cwd=None, timeout=900, structured=False):
             raise SigningError(label + " could not finish; no raw signing log was published.") from None
     if result.returncode != 0:
         hint = archive_failure_hint(log) if label == "Device archive" else ""
+        if label in ("Apple package validation", "Apple upload"):
+            hint = apple_failure_hint(log)
         raise SigningError(label + " failed" + hint + "; no raw signing log was published.")
     # Small structured commands need their output; build log contents are never printed.
     with log.open("rb") as source:

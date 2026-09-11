@@ -108,6 +108,25 @@ class SigningContractTests(unittest.TestCase):
                 else:
                     self.assertEqual(message, "Device archive failed; no raw signing log was published.")
 
+    def test_apple_diagnostics_omit_private_values_and_bound_error_codes(self):
+        output = ("ITMS-90683: Missing purpose string NSHealthUpdateUsageDescription "
+                  "in PRIVATE_CANARY.bundle; user PRIVATE_CANARY@example.invalid")
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            with self.assertRaises(signing.SigningError) as caught:
+                signing.command("Apple package validation", [sys.executable, "-c",
+                                "import sys; print(sys.argv[1]); sys.exit(1)", output], state)
+            message = str(caught.exception)
+            self.assertIn("ITMS-90683", message)
+            self.assertIn("Info.plist key NSHealthUpdateUsageDescription", message)
+            self.assertNotIn("PRIVATE_CANARY", message)
+            self.assertNotIn("Missing purpose string", message)
+            log = state / "command.log"
+            log.write_text("PRIVATE_CANARY unknown error")
+            self.assertEqual(signing.apple_failure_hint(log), "")
+            log.write_text(" ".join("ITMS-" + str(10000 + value) for value in range(20)))
+            self.assertEqual(signing.apple_failure_hint(log).count("ITMS-"), 8)
+
     def test_identifier_rejects_shell_or_path_content(self):
         for value in ["../secret", "abc;echo private", "0123456789\n", None]:
             with self.assertRaises(signing.SigningError):
