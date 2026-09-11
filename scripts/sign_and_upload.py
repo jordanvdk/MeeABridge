@@ -90,6 +90,34 @@ def write_private(path, content):
         output.write(content)
 
 
+def archive_signing_settings(team, identity, profile_id, keychain):
+    # Only the app target maps these custom values to standard signing settings.
+    # Command-line standard settings would also reach Swift package targets.
+    return ["MEEA_TEAM_ID=" + team, "MEEA_SIGNING_IDENTITY=" + identity,
+            "MEEA_PROFILE_UUID=" + profile_id, "MEEA_KEYCHAIN_PATH=" + str(keychain)]
+
+
+def archive_failure_hint(log):
+    # Read a bounded tail and emit only fixed categories, never log fragments.
+    try:
+        with log.open("rb") as source:
+            source.seek(max(0, log.stat().st_size - 2 * 1024 * 1024))
+            output = source.read(2 * 1024 * 1024).lower()
+    except OSError:
+        return ""
+    categories = (
+        (b"does not support provisioning profiles", "profile assigned to an unsupported target"),
+        (b"no profiles for", "matching provisioning profile not found"),
+        (b"no profile for team", "matching provisioning profile not found"),
+        (b"requires a provisioning profile", "matching provisioning profile not found"),
+        (b"doesn't include signing certificate", "profile and signing certificate mismatch"),
+    )
+    for marker, category in categories:
+        if marker in output:
+            return " (" + category + ")"
+    return ""
+
+
 def command(label, args, state, *, cwd=None, timeout=900, structured=False):
     # Child build tools never inherit the original credential environment.
     child_env = {k: v for k, v in os.environ.items() if k not in CREDENTIALS}
@@ -102,7 +130,8 @@ def command(label, args, state, *, cwd=None, timeout=900, structured=False):
         except (OSError, subprocess.TimeoutExpired):
             raise SigningError(label + " could not finish; no raw signing log was published.") from None
     if result.returncode != 0:
-        raise SigningError(label + " failed; no raw signing log was published.")
+        hint = archive_failure_hint(log) if label == "Device archive" else ""
+        raise SigningError(label + " failed" + hint + "; no raw signing log was published.")
     # Small structured commands need their output; build log contents are never printed.
     with log.open("rb") as source:
         return source.read(2 * 1024 * 1024)
@@ -227,7 +256,7 @@ def run():
         identity = next(iter(matches))
         print("Signing inputs verified; building device archive.", flush=True)
         archive = state / "MeeABridge.xcarchive"
-        command("Device archive", ["xcodebuild", "-project", "MeeABridge.xcodeproj", "-scheme", "MeeABridge", "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive), "-derivedDataPath", str(state / "DerivedData"), "PRODUCT_BUNDLE_IDENTIFIER=" + bundle, "DEVELOPMENT_TEAM=" + team, "CURRENT_PROJECT_VERSION=" + build_number, "CODE_SIGN_STYLE=Manual", "CODE_SIGN_IDENTITY=" + identity, "PROVISIONING_PROFILE_SPECIFIER=" + profile_id, "OTHER_CODE_SIGN_FLAGS=--keychain " + str(keychain), "CODE_SIGNING_ALLOWED=YES", "CODE_SIGNING_REQUIRED=YES", "archive"], state, timeout=1200)
+        command("Device archive", ["xcodebuild", "-project", "MeeABridge.xcodeproj", "-scheme", "MeeABridge", "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive), "-derivedDataPath", str(state / "DerivedData"), "PRODUCT_BUNDLE_IDENTIFIER=" + bundle, "CURRENT_PROJECT_VERSION=" + build_number, *archive_signing_settings(team, identity, profile_id, keychain), "archive"], state, timeout=1200)
         app = archive / "Products/Applications/MeeABridge.app"
         command("Archive signature verification", ["codesign", "--verify", "--deep", "--strict", str(app)], state)
         info = plistlib.loads((app / "Info.plist").read_bytes())

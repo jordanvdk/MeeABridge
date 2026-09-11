@@ -45,7 +45,7 @@ Create an environment named `testflight` before dispatching the signed workflow.
 | Secret `ASC_ISSUER_ID` | Upload API key issuer UUID |
 | Secret `ASC_PRIVATE_KEY` | Complete PKCS8 `.p8` upload key text |
 
-The public project keeps a placeholder bundle identifier and no team identity. The signing job applies the environment's registered identity to the device archive. GitHub environment settings and secrets are not created by cloning this repository.
+The public project keeps a placeholder bundle identifier and no team identity. The signing job applies the environment's registered identity to the device archive. Release signing settings are scoped to the app target through custom `MEEA_*` build variables so provisioning profiles are not applied to Swift package targets. GitHub environment settings and secrets are not created by cloning this repository.
 
 ## Run a signed build
 
@@ -55,7 +55,7 @@ The workflow checks out the dispatch SHA, reruns tests, regenerates the icon/pro
 
 Apple validation and upload use API-key authentication. No automatic provisioning changes, Apple password, signing action from a pull request, untrusted artifact signing or automatic App Store release are included. Upload is manual and restricted to `main`; branch access and the environment review gate are configured separately in GitHub.
 
-Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages are published. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
+Signing commands keep raw diagnostic output private on the ephemeral runner. Only fixed stage/error messages and allowlisted archive failure categories are published; no raw log text is included. The job uploads no IPA, archive, signing material or raw signing log as a GitHub artifact. Cleanup runs on success/failure and in a final workflow step; forced runner termination ultimately relies on GitHub discarding the hosted runner. Signed apps inherently contain their public signing identity and provisioning information, so do not treat a distributed app as anonymous.
 
 ## After upload
 

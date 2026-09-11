@@ -5,6 +5,8 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
+import tempfile
 
 spec = importlib.util.spec_from_file_location("sign_and_upload", Path(__file__).parents[1] / "sign_and_upload.py")
 signing = importlib.util.module_from_spec(spec)
@@ -73,6 +75,38 @@ class SigningContractTests(unittest.TestCase):
             with self.assertRaises(signing.SigningError) as caught:
                 signing.decode_secret(value)
             self.assertNotIn("private-value", str(caught.exception))
+
+    def test_archive_profile_settings_do_not_override_package_signing(self):
+        arguments = signing.archive_signing_settings(self.team, "A" * 40,
+                                                     self.profile["UUID"], Path("/tmp/synthetic.keychain"))
+        settings = dict(argument.split("=", 1) for argument in arguments)
+        forbidden = {"DEVELOPMENT_TEAM", "CODE_SIGN_STYLE", "CODE_SIGN_IDENTITY",
+                     "PROVISIONING_PROFILE_SPECIFIER", "OTHER_CODE_SIGN_FLAGS",
+                     "CODE_SIGNING_ALLOWED", "CODE_SIGNING_REQUIRED"}
+        self.assertFalse(forbidden.intersection(settings))
+        self.assertEqual(settings["MEEA_TEAM_ID"], self.team)
+        self.assertEqual(settings["MEEA_PROFILE_UUID"], self.profile["UUID"])
+
+    def test_archive_errors_publish_only_fixed_categories(self):
+        cases = [
+            ("error: SyntheticLibrary does not support provisioning profiles. PRIVATE_CANARY",
+             "profile assigned to an unsupported target"),
+            ("error: No profiles for PRIVATE_CANARY were found.",
+             "matching provisioning profile not found"),
+            ("error: PRIVATE_CANARY unknown failure", None),
+        ]
+        for output, category in cases:
+            with self.subTest(category=category), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaises(signing.SigningError) as caught:
+                    signing.command("Device archive", [sys.executable, "-c",
+                                    "import sys; print(sys.argv[1]); sys.exit(1)", output], Path(directory))
+                message = str(caught.exception)
+                self.assertNotIn("PRIVATE_CANARY", message)
+                self.assertNotIn("SyntheticLibrary", message)
+                if category:
+                    self.assertIn(category, message)
+                else:
+                    self.assertEqual(message, "Device archive failed; no raw signing log was published.")
 
     def test_identifier_rejects_shell_or_path_content(self):
         for value in ["../secret", "abc;echo private", "0123456789\n", None]:
