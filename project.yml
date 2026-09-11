@@ -39,6 +39,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSHealthShareUsageDescription: MeeA Bridge reads your daily steps so you can preview and manually send them to your own MeeA server.
+        NSHealthUpdateUsageDescription: MeeA Bridge does not write or change your Health data. It only reads daily steps for your preview and manual sync.
         ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
     entitlements:
