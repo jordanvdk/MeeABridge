@@ -368,6 +368,8 @@ def run():
         info = plistlib.loads((app / "Info.plist").read_bytes())
         if info.get("CFBundleIdentifier") != bundle or info.get("CFBundleVersion") != build_number:
             raise SigningError("The archive identity does not match the requested build.")
+        if info.get("UIDeviceFamily") != [1]:
+            raise SigningError("The archive must target iPhone only.")
         signed_entitlements = read_signed_entitlements(app, state)
         if (signed_entitlements.get("application-identifier") != team + "." + bundle
                 or signed_entitlements.get("com.apple.developer.healthkit") is not True
